@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Role Radar - Your Job Hunt Companion</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #90caf9;
+    }
+    .dashboard, .job-form, .job-list {
+      max-width: 700px;
+      margin: 20px auto;
+      background: #1e1e1e;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    input, button, textarea, select {
+      padding: 10px;
+      margin-top: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      background: #2c2c2c;
+      border: none;
+      color: #e0e0e0;
+      border-radius: 5px;
+    }
+    button {
+      background-color: #2196f3;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background-color: #1976d2;
+    }
+    .job {
+      border: 1px solid #333;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      background: #2c2c2c;
+    }
+    .tasks {
+      margin-top: 10px;
+    }
+    .task {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .task input[type="checkbox"] {
+      margin-right: 10px;
+    }
+    .delete-btn {
+      color: #ef5350;
+      float: right;
+      cursor: pointer;
+    }
+    .priority-label {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .priority-high {
+      color: #f44336;
+    }
+    .priority-medium {
+      color: #ff9800;
+    }
+    .priority-low {
+      color: #4caf50;
+    }
+    .overdue {
+      color: #ef9a9a;
+      font-weight: bold;
+    }
+    .task-meta {
+      font-size: 0.9em;
+      color: #aaa;
+    }
+    #overdueBanner {
+      background: #ffebee;
+      color: #b71c1c;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      display: none;
+      text-align: center;
+    }
+    .badge {
+      background: #2e7d32;
+      color: #a5d6a7;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-weight: bold;
+      text-align: center;
+    }
+    .analytics {
+      margin-top: 10px;
+      padding: 15px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 10px;
+      font-size: 0.95em;
+      line-height: 1.6;
+    }
+    .analytics span {
+      display: block;
+      margin-bottom: 6px;
+    }
+    .incomplete-tasks {
+      margin-top: 15px;
+      padding: 15px;
+      background: #222;
+      border-radius: 8px;
+      font-size: 0.9em;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .incomplete-task-item {
+      margin-bottom: 8px;
+      border-bottom: 1px solid #444;
+      padding-bottom: 5px;
+    }
+    .incomplete-task-item:last-child {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 Role Radar</h1>
+  <div id="overdueBanner"></div>
+  <div class="dashboard">
+    <div class="analytics" id="analytics"></div>
+    <div class="badge" id="badgeBox"></div>
+    <div class="incomplete-tasks" id="incompleteTasksSection">
+      <strong>⏳ Incomplete Follow-up Tasks:</strong>
+      <div id="incompleteTasks"></div>
+    </div>
+  </div>
+  <div class="job-form">
+    <input type="text" id="company" placeholder="Company Name" />
+    <input type="text" id="role" placeholder="Role" />
+    <input type="url" id="link" placeholder="Job Link (https://...)" />
+    <select id="priority">
+      <option value="High">High Priority</option>
+      <option value="Medium">Medium Priority</option>
+      <option value="Low">Low Priority</option>
+    </select>
+    <button onclick="addJob()">Add Job</button>
+  </div>
+  <div class="job-list" id="jobList"></div>
+
+  <script>
+    let jobs = [];
+
+    function saveJobs() {
+      localStorage.setItem('jobs', JSON.stringify(jobs));
+    }
+
+    function loadJobs() {
+      const saved = localStorage.getItem('jobs');
+      if (saved) {
+        jobs = JSON.parse(saved);
+      }
+    }
+
+    function addJob() {
+      const company = document.getElementById("company").value.trim();
+      const role = document.getElementById("role").value.trim();
+      const link = document.getElementById("link").value.trim();
+      const priority = document.getElementById("priority").value;
+
+      if (!company || !role || !link) return;
+
+      jobs.push({ company, role, link, priority, tasks: [], added: new Date(), completedTasks: 0 });
+      saveJobs();
+      renderJobs();
+      updateAnalytics();
+      awardBadges();
+      clearForm();
+    }
+
+    function clearForm() {
+      document.getElementById("company").value = "";
+      document.getElementById("role").value = "";
+      document.getElementById("link").value = "";
+      document.getElementById("priority").value = "High";
+    }
+
+    function renderJobs() {
+      const jobList = document.getElementById("jobList");
+      jobList.innerHTML = "";
+
+      jobs.forEach((job, i) => {
+        const jobDiv = document.createElement("div");
+        jobDiv.className = "job";
+
+        jobDiv.innerHTML = `
+          <strong>${job.company}</strong> - ${job.role} <a href="${job.link}" target="_blank">🔗</a>
+          <span class="delete-btn" onclick="deleteJob(${i})">✖</span>
+          <div class="priority-label priority-${job.priority.toLowerCase()}">${job.priority} Priority</div>
+          <div class="tasks" id="tasks-${i}"></div>
+          <input type="text" placeholder="Add follow-up task..." onkeypress="if(event.key==='Enter'){addTask(${i}, this.value); this.value='';}">
+        `;
+
+        job.tasks.forEach((task, j) => {
+          const taskDiv = document.createElement("div");
+          taskDiv.className = "task";
+          taskDiv.innerHTML = `
+            <label><input type="checkbox" onchange="toggleTask(${i}, ${j})" ${task.done ? "checked" : ""}> ${task.text}</label>
+            <span class="task-meta">${task.date}</span>
+          `;
+          jobDiv.querySelector(`#tasks-${i}`).appendChild(taskDiv);
+        });
+
+        jobList.appendChild(jobDiv);
+      });
+
+      updateIncompleteTasks();
+    }
+
+    function addTask(jobIndex, taskText) {
+      if (!taskText.trim()) return;
+      const task = { text: taskText.trim(), done: false, date: new Date().toLocaleDateString() };
+      jobs[jobIndex].tasks.push(task);
+      saveJobs();
+      renderJobs();
+      updateAnalytics();
+      awardBadges();
+    }
+
+    function toggleTask(jobIndex, taskIndex) {
+      jobs[jobIndex].tasks[jobIndex][taskIndex] = jobs[jobIndex].tasks[jobIndex][taskIndex]; // <-- just safety, not needed
+      jobs[jobIndex].tasks[taskIndex].done = !jobs[jobIndex].tasks[taskIndex].done;
+      saveJobs();
+      renderJobs();
+      updateAnalytics();
+      awardBadges();
+    }
+
+    function deleteJob(index) {
+      jobs.splice(index, 1);
+      saveJobs();
+      renderJobs();
+      updateAnalytics();
+      awardBadges();
+    }
+
+    function updateAnalytics() {
+      const analytics = document.getElementById("analytics");
+      let totalJobs = jobs.length;
+      let totalTasks = 0,
+        completedTasks = 0;
+      let high = 0,
+        medium = 0,
+        low = 0;
+
+      jobs.forEach((job) => {
+        totalTasks += job.tasks.length;
+        completedTasks += job.tasks.filter((t) => t.done).length;
+        if (job.priority === "High") high++;
+        if (job.priority === "Medium") medium++;
+        if (job.priority === "Low") low++;
+      });
+
+      analytics.innerHTML = `
+        <span><strong>📊 Total Jobs:</strong> ${totalJobs}</span>
+        <span><strong>✅ Tasks Completed:</strong> ${completedTasks} / ${totalTasks}</span>
+        <span><strong>🔥 Priorities:</strong> High: ${high}, Medium: ${medium}, Low: ${low}</span>
+      `;
+    }
+
+    function awardBadges() {
+      const badgeBox = document.getElementById("badgeBox");
+      badgeBox.innerHTML = "";
+
+      let totalTasks = jobs.reduce((sum, j) => sum + j.tasks.length, 0);
+      let completed = jobs.reduce(
+        (sum, j) => sum + j.tasks.filter((t) => t.done).length,
+        0
+      );
+      let totalJobs = jobs.length;
+
+      if (totalJobs === 0 && totalTasks === 0) {
+        badgeBox.innerHTML = `<div class='badge'>👋 Welcome! Start by adding your first job to earn badges!</div>`;
+        return;
+      }
+
+      badgeBox.innerHTML += `<div class='badge'>🎯 Keep Going! Your journey has started</div>`;
+
+      if (completed >= 5) {
+        badgeBox.innerHTML += `<div class='badge'>🏅 Task Slayer! Completed 5+ tasks!</div>`;
+      }
+      if (totalJobs >= 3) {
+        badgeBox.innerHTML += `<div class='badge'>🚀 Getting There! 3+ jobs tracked</div>`;
+      }
+      if (completed >= 10) {
+        badgeBox.innerHTML += `<div class='badge'>🌟 Consistency Star! 10+ tasks done</div>`;
+      }
+      if (totalJobs >= 5) {
+        badgeBox.innerHTML += `<div class='badge'>🎯 Job Juggler! Tracking 5+ roles</div>`;
+      }
+    }
+
+    function updateIncompleteTasks() {
+      const incompleteDiv = document.getElementById("incompleteTasks");
+      incompleteDiv.innerHTML = "";
+
+      let incompleteTasksList = [];
+
+      jobs.forEach((job, jobIndex) => {
+        job.tasks.forEach((task, taskIndex) => {
+          if (!task.done) {
+            incompleteTasksList.push({
+              company: job.company,
+              role: job.role,
+              text: task.text,
+              jobIndex,
+              taskIndex,
+            });
+          }
+        });
+      });
+
+      if (incompleteTasksList.length === 0) {
+        incompleteDiv.innerHTML = "<em>No incomplete tasks. You're on track! 🎉</em>";
+        return;
+      }
+
+      incompleteTasksList.forEach((item) => {
+        const div = document.createElement("div");
+        div.className = "incomplete-task-item";
+        div.innerHTML = `
+          <strong>${item.company} - ${item.role}:</strong> ${item.text}
+          <button onclick="markTaskDone(${item.jobIndex}, ${item.taskIndex})" style="float:right;background:#4caf50;color:#fff;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;">Mark Done</button>
+        `;
+        incompleteDiv.appendChild(div);
+      });
+    }
+
+    function markTaskDone(jobIndex, taskIndex) {
+      jobs[jobIndex].tasks[taskIndex].done = true;
+      saveJobs();
+      renderJobs();
+      updateAnalytics();
+      awardBadges();
+    }
+
+    // Fix toggleTask bug (remove unnecessary line)
+    function toggleTask(jobIndex, taskIndex) {
+      jobs[jobIndex].tasks[taskIndex].done = !jobs[jobIndex].tasks[taskIndex].done;
+      saveJobs();
+      renderJobs();
+      updateAnalytics();
+      awardBadges();
+    }
+
+    // Initialize app on page load
+    loadJobs();
+    renderJobs();
+    updateAnalytics();
+    awardBadges();
+  </script>
+</body>
+</html>
